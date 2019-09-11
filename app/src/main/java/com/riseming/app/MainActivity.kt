@@ -1,7 +1,7 @@
 package com.riseming.app
 
-import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
@@ -14,28 +14,44 @@ import com.tencent.smtt.export.external.interfaces.WebResourceRequest
 import com.tencent.smtt.sdk.WebSettings
 import com.tencent.smtt.sdk.WebView
 import com.tencent.smtt.sdk.WebViewClient
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.*
 
 
 class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
 
     private lateinit var webView: WebView
     private lateinit var cl404: ConstraintLayout
+    private lateinit var dialogBuilder: AlertDialog.Builder
+    private var dialog: AlertDialog? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.web_view)
         cl404 = findViewById(R.id.cl_404)
-        webView.webViewClient = CustomWebViewClient(this) { a, b ->
-            b?.apply {
-                if (this.startsWith("net::")) {
-                    cl404.visibility = View.VISIBLE
-                    webView.visibility = View.GONE
+
+        dialogBuilder = AlertDialog.Builder(this@MainActivity)
+            .setTitle("${getString(R.string.app_name)}温馨提示")
+            .setCancelable(false)
+            .setNegativeButton("取消", null)
+        webView.webViewClient = CustomWebViewClient(object : Callback {
+            override fun onError(p1: Int, p2: String?) {
+                p2?.apply {
+                    if (this.startsWith("net::")) {
+                        cl404.visibility = View.VISIBLE
+                        webView.visibility = View.GONE
+                    }
                 }
             }
-        }
+
+            override fun onInterceptor(s: String, url: Uri) {
+                if (dialog == null) {
+                    showDialog(s, url)
+                } else if (!dialog!!.isShowing) {
+                    showDialog(s, url)
+                }
+            }
+        })
 //        swipeRefreshLayout.setOnRefreshListener {
 //            webView.reload()
 //            GlobalScope.launch {
@@ -61,6 +77,26 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
         findViewById<View>(R.id.iv_close).setOnClickListener {
             finish()
         }
+    }
+
+    private fun showDialog(s: String, url: Uri) {
+        dialogBuilder.setMessage("是否前往“$s”购买该商品？")
+            .setPositiveButton(
+                "立刻前往"
+            ) { _, _ ->
+                val intent = Intent()
+                intent.action = Intent.ACTION_VIEW
+                intent.data = url
+                try {
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "未安装“$s”app", Toast.LENGTH_SHORT).show()
+                    e.printStackTrace()
+                }
+            }
+
+        dialog = dialogBuilder.create()
+        dialog?.show()
     }
 
     private fun initWebViewSetting(webView: WebView) {
@@ -97,15 +133,14 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     }
 
     internal class CustomWebViewClient(
-        private val activity: Activity,
-        val callback: (Int, String?) -> Unit
+        private val callback: Callback
     ) : WebViewClient() {
         private val schemeList = listOf("taobao", "tmall")
         private val schemeAppList = listOf("淘宝", "天猫")
         override fun onReceivedError(p0: WebView?, p1: Int, p2: String?, p3: String?) {
             LogUtils.logD("code = $p1 , description = $p2 , url = $p3")
             // net::ERR_INTERNET_DISCONNECTED
-            callback(p1, p2)
+            callback.onError(p1, p2)
         }
 
         override fun shouldOverrideUrlLoading(
@@ -116,30 +151,19 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
                 url?.apply {
                     LogUtils.logD(this.toString())
                     if (schemeList.contains(scheme)) {
-                        AlertDialog.Builder(activity)
-                            .setTitle("提示")
-                            .setMessage("是否前往${schemeAppList[schemeList.indexOf(scheme)]},url = ${url}？")
-                            .setPositiveButton(
-                                "确定"
-                            ) { p0, p1 ->
-                                val intent = Intent()
-                                intent.action = Intent.ACTION_VIEW
-                                intent.data = url
-                                try {
-                                    activity.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(activity, "未安装app", Toast.LENGTH_SHORT).show()
-                                    e.printStackTrace()
-                                }
-                            }
-                            .setNegativeButton("取消", null)
-                            .create()
-                            .show()
-
+                        callback.onInterceptor(
+                            schemeAppList[schemeList.indexOf(scheme)],
+                            url
+                        )
                     }
                 }
             }
             return super.shouldOverrideUrlLoading(view, request)
         }
+    }
+
+    interface Callback {
+        fun onError(p1: Int, p2: String?)
+        fun onInterceptor(s: String, url: Uri)
     }
 }
