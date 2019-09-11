@@ -115,11 +115,21 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
         webSettings.textSize = WebSettings.TextSize.NORMAL
     }
 
+    private var last: Long = 0
+    private var exit = false
+
     override fun onBackPressed() {
         if (webView.canGoBack()) {
             webView.goBack()
         } else {
-            super.onBackPressed()
+            val interval = System.currentTimeMillis() - last
+            if (exit && interval < 2000) {
+                super.onBackPressed()
+            } else {
+                exit = true
+                last = System.currentTimeMillis()
+                Toast.makeText(this, "再按一次返回退出APP", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -135,8 +145,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
     internal class CustomWebViewClient(
         private val callback: Callback
     ) : WebViewClient() {
-        private val schemeList = listOf("taobao", "tmall")
-        private val schemeAppList = listOf("淘宝", "天猫")
+        private val schemeList = listOf("tmall")
+        private val schemeAppList = listOf("天猫")
         override fun onReceivedError(p0: WebView?, p1: Int, p2: String?, p3: String?) {
             LogUtils.logD("code = $p1 , description = $p2 , url = $p3")
             // net::ERR_INTERNET_DISCONNECTED
