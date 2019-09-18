@@ -34,6 +34,9 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
             .setTitle("${getString(R.string.app_name)}温馨提示")
             .setCancelable(false)
             .setNegativeButton("取消", null)
+        findViewById<View>(R.id.textView).setOnClickListener {
+            reload()
+        }
         webView.webViewClient = CustomWebViewClient(object : Callback {
             override fun onError(p1: Int, p2: String?) {
                 p2?.apply {
@@ -70,13 +73,17 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope() {
             onBackPressed()
         }
         findViewById<View>(R.id.iv_reload).setOnClickListener {
-            cl404.visibility = View.GONE
-            webView.visibility = View.VISIBLE
-            webView.reload()
+            reload()
         }
         findViewById<View>(R.id.iv_close).setOnClickListener {
             finish()
         }
+    }
+
+    private fun reload() {
+        cl404.visibility = View.GONE
+        webView.visibility = View.VISIBLE
+        webView.reload()
     }
 
     private fun showDialog(s: String, url: Uri) {
